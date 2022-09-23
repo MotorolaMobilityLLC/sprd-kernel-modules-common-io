@@ -22,6 +22,7 @@
 #include <linux/sched/debug.h>
 #include <trace/hooks/sched.h>
 #include <linux/stacktrace.h>
+#include <linux/unisoc_vd_def.h>
 
 // iowait stacktrace depth
 #define NR_STACK_FRAME    3
@@ -36,18 +37,30 @@ MODULE_PARM_DESC(balance_panic_threshold, "balance_dirty_pages panic threshold i
 
 static int balance_dirty_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	if (current == NULL) return -1;
+	struct uni_task_struct *curr_unitsk;
 
-	current->android_vendor_data1[62] = ktime_get_boot_fast_ns();
+	if (current == NULL)
+		return -1;
+
+	curr_unitsk = (struct uni_task_struct *)current->android_vendor_data1;
+
+	curr_unitsk->balance_dirty_start_ts = ktime_get_boot_fast_ns();
+
 	return 0;
 }
 NOKPROBE_SYMBOL(balance_dirty_entry_handler);
 
 static int balance_dirty_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	if (current == NULL) return 0;
+	struct uni_task_struct *curr_unitsk;
 
-	current->android_vendor_data1[62] = 0;
+	if (current == NULL)
+		return 0;
+
+	curr_unitsk = (struct uni_task_struct *)current->android_vendor_data1;
+
+	curr_unitsk->balance_dirty_start_ts = 0;
+
 	return 0;
 }
 NOKPROBE_SYMBOL(balance_dirty_ret_handler);
@@ -68,10 +81,14 @@ MODULE_PARM_DESC(balance_nmissed, "blance kretprobe nmissed");
 
 void dequeue_task_vh(void *data,struct rq *rq, struct task_struct *tsk, int flags)
 {
+	struct uni_task_struct *uni_tsk;
+
 	if (tsk == NULL) return;
 
+	uni_tsk= (struct uni_task_struct *)tsk->android_vendor_data1;
+
 	if (tsk->in_iowait)
-		tsk->android_vendor_data1[63] = ktime_get_boot_fast_ns();
+		uni_tsk->iowait_start_ts = ktime_get_boot_fast_ns();
 
 	return;
 }
@@ -80,13 +97,16 @@ void dequeue_task_vh(void *data,struct rq *rq, struct task_struct *tsk, int flag
 void enqueue_task_vh(void *data, struct rq *rq, struct task_struct *tsk, int flags)
 {
 	u64 delta;
+	struct uni_task_struct *uni_tsk;
 	u64 now = ktime_get_boot_fast_ns();
 
 	if (tsk == NULL) return;
 
+	uni_tsk= (struct uni_task_struct *)tsk->android_vendor_data1;
+
 	if (tsk->in_iowait) {
-		if (tsk->android_vendor_data1[63] && now > tsk->android_vendor_data1[63]) {
-			delta = now - tsk->android_vendor_data1[63];
+		if (uni_tsk->iowait_start_ts && now > uni_tsk->iowait_start_ts) {
+			delta = now - uni_tsk->iowait_start_ts;
 			if (delta > iowait_threshold * NSEC_PER_MSEC) {
 				int i;
 				unsigned int nr_entries;
@@ -103,8 +123,8 @@ void enqueue_task_vh(void *data, struct rq *rq, struct task_struct *tsk, int fla
 			}
 		}
 
-		if (tsk->android_vendor_data1[62] &&
-			((now - tsk->android_vendor_data1[62]) > balance_panic_threshold * NSEC_PER_SEC)) {
+		if (uni_tsk-> balance_dirty_start_ts &&
+			((now - uni_tsk->balance_dirty_start_ts) > balance_panic_threshold * NSEC_PER_SEC)) {
 			sched_show_task(tsk);
 			panic("task %px stall in balance_dirty_pages\n", tsk);
 		}
