@@ -1,4 +1,5 @@
-#
+# SPDX-License-Identifier: GPL-2.0
+
 # kprobe_block.ko
 #
 # Makefile: for external make invocation
