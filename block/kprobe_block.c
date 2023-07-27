@@ -23,6 +23,10 @@
 #define FROM                   3   // 2^FROM ms
 #define IO_ARRAY_SIZE          12  // last column: 2^(FROM+IO_ARRAY_SIZE-2) ms
 
+#ifdef CONFIG_SPRD_DEBUG
+#define REQ_OVERTIME	       512 // i2c more this value will print request in ms
+#endif
+
 /*
  * convert ms to index:
  * [0]     [1]      [2]          [3]          [...] [N]
@@ -186,6 +190,16 @@ static void complete_handler_post(struct kprobe *p, struct pt_regs *regs,
 
 	/* issue to complete */
 	msecs = ktime_to_ms(complete_ns - issue_time_ns);
+#ifdef CONFIG_SPRD_DEBUG
+	if (msecs >= REQ_OVERTIME) {
+		pr_info("request sector:%ld, nr_sector:%ld, cmd_flags:%x, cpu:%d, task:%s, "
+			"i2c: %ld, raise_time: %ld, entry_time:%ld, during:%ld\n",
+			blk_rq_pos(rq), blk_rq_sectors(rq), rq->cmd_flags, raw_smp_processor_id(),
+			current->comm, msecs, ktime_to_ms(rq->softirq_raise_time_ns),
+			ktime_to_ms(rq->softirq_entry_time_ns),
+			ktime_to_ms(rq->softirq_entry_time_ns - rq->softirq_raise_time_ns));
+	}
+#endif
 	index = ms_to_index(msecs);
 	++info->issue2complete[index];
 	spin_unlock_irqrestore(&info->lock, lock_flags);
