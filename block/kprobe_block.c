@@ -1,5 +1,8 @@
-// SPDX-License-Identifier: GPL-2.0-only
+// SPDX-FileCopyrightText: 2016-2023 Unisoc (Shanghai) Technologies Co., Ltd
+// SPDX-License-Identifier: LicenseRef-Unisoc-General-1.0
 /*
+ * Copyright (c) 2023, Unisoc, Inc.
+ *
  * trace io insert/issue/complete.
  *
  * For more information on theory of operation of kprobes, see
@@ -17,7 +20,7 @@
 #include <linux/blkdev.h>
 #include <linux/list.h>
 
-#define MAX_STORAGE_NUM        3
+#define MAX_STORAGE_NUM        4
 #define STAT_PRINT_INTERVAL    10  // print interval in second
 #define DISK_NAME_LEN_MAX      32
 #define FROM                   3   // 2^FROM ms
@@ -56,6 +59,9 @@ static struct io_debug_info io_debug = {
 		},
 		{
 			.disk_name = "mmcblk1",
+		},
+		{
+			.disk_name = "loop",
 		},
 	},
 };
@@ -165,7 +171,8 @@ static void complete_handler_post(struct kprobe *p, struct pt_regs *regs,
 
 	for (i = 0; i < MAX_STORAGE_NUM; i++) {
 		info = &io_debug.disk_info[i];
-		if (!strcmp(info->disk_name, rq->rq_disk->disk_name))
+		if (!strcmp(info->disk_name, rq->rq_disk->disk_name) ||
+			!strncmp(info->disk_name, rq->rq_disk->disk_name, 4))
 			break;
 	}
 	if (i >= MAX_STORAGE_NUM)
