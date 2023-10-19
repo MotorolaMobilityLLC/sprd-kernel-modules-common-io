@@ -172,7 +172,7 @@ static void complete_handler_post(struct kprobe *p, struct pt_regs *regs,
 	for (i = 0; i < MAX_STORAGE_NUM; i++) {
 		info = &io_debug.disk_info[i];
 		if (!strcmp(info->disk_name, rq->rq_disk->disk_name) ||
-			!strncmp(info->disk_name, rq->rq_disk->disk_name, 4))
+			(!strcmp(info->disk_name, "loop") && !strncmp(info->disk_name, rq->rq_disk->disk_name, 4)))
 			break;
 	}
 	if (i >= MAX_STORAGE_NUM)
